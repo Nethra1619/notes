@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -11,11 +10,11 @@ const fs = require('fs');
 const app = express();
 app.use(express.json());
 
-// CORS: allow your frontend origin (set ORIGIN in .env or allow all in dev)
+// CORS
 const ORIGIN = process.env.ORIGIN || '*';
 app.use(cors({ origin: ORIGIN }));
 
-// Validate env
+// Firebase config validation
 const { SERVICE_ACCOUNT_PATH, DATABASE_URL, STORAGE_BUCKET, PORT } = process.env;
 if (!SERVICE_ACCOUNT_PATH || !DATABASE_URL || !STORAGE_BUCKET) {
   console.error('Please set SERVICE_ACCOUNT_PATH, DATABASE_URL and STORAGE_BUCKET in .env');
@@ -34,10 +33,10 @@ admin.initializeApp({
 const db = admin.database();
 const bucket = admin.storage().bucket();
 
-// Multer for temp uploads
+// Multer for file uploads
 const upload = multer({ dest: 'uploads/' });
 
-// ----------------- Auth middleware -----------------
+// Auth middleware
 async function verifyTokenMiddleware(req, res, next) {
   const auth = req.headers.authorization || '';
   if (!auth.startsWith('Bearer ')) return res.status(401).json({ error: 'No token provided' });
@@ -52,93 +51,87 @@ async function verifyTokenMiddleware(req, res, next) {
   }
 }
 
-// ---------- Helper: user paths ----------
+// Refs
 function notesRef(uid) { return db.ref(`users/${uid}/notes`); }
 function trashRef(uid) { return db.ref(`users/${uid}/trash`); }
 
-// ---------- Notes endpoints (authenticated) ----------
+// ---------- Notes ----------
+
 app.get('/api/notes', verifyTokenMiddleware, async (req, res) => {
   try {
-    const uid = req.user.uid;
-    const snap = await notesRef(uid).once('value');
+    const snap = await notesRef(req.user.uid).once('value');
     const data = snap.val() || {};
-    const arr = Object.keys(data).map(k => ({ id: k, ...data[k] }));
-    res.json(arr);
+    res.json(Object.keys(data).map(k => ({ id: k, ...data[k] })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/notes', verifyTokenMiddleware, async (req, res) => {
   try {
-    const uid = req.user.uid;
     const note = {
       text: req.body.text || '',
       file: req.body.file || null,
+      done: req.body.done || false,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
-    const ref = await notesRef(uid).push(note);
+    const ref = await notesRef(req.user.uid).push(note);
     res.json({ id: ref.key, ...note });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/notes/:id', verifyTokenMiddleware, async (req, res) => {
   try {
-    const uid = req.user.uid;
     const id = req.params.id;
     const update = { ...req.body, updatedAt: Date.now() };
-    await notesRef(uid).child(id).update(update);
-    const snap = await notesRef(uid).child(id).once('value');
+    await notesRef(req.user.uid).child(id).update(update);
+    const snap = await notesRef(req.user.uid).child(id).once('value');
     res.json({ id, ...snap.val() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Delete note -> move to user's trash
 app.delete('/api/notes/:id', verifyTokenMiddleware, async (req, res) => {
   try {
-    const uid = req.user.uid;
     const id = req.params.id;
-    const snap = await notesRef(uid).child(id).once('value');
+    const snap = await notesRef(req.user.uid).child(id).once('value');
     const note = snap.val();
     if (!note) return res.status(404).json({ error: 'Note not found' });
-    await trashRef(uid).push({ ...note, deletedAt: Date.now() });
-    await notesRef(uid).child(id).remove();
+    await trashRef(req.user.uid).push({ ...note, deletedAt: Date.now() });
+    await notesRef(req.user.uid).child(id).remove();
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------- Trash ----------
+
 app.get('/api/trash', verifyTokenMiddleware, async (req, res) => {
   try {
-    const uid = req.user.uid;
-    const snap = await trashRef(uid).once('value');
+    const snap = await trashRef(req.user.uid).once('value');
     const data = snap.val() || {};
-    const arr = Object.keys(data).map(k => ({ id: k, ...data[k] }));
-    res.json(arr);
+    res.json(Object.keys(data).map(k => ({ id: k, ...data[k] })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/trash/restore/:id', verifyTokenMiddleware, async (req, res) => {
   try {
-    const uid = req.user.uid;
     const id = req.params.id;
-    const snap = await trashRef(uid).child(id).once('value');
+    const snap = await trashRef(req.user.uid).child(id).once('value');
     const item = snap.val();
     if (!item) return res.status(404).json({ error: 'Trash item not found' });
-    const newRef = await notesRef(uid).push(item);
-    await trashRef(uid).child(id).remove();
+    const newRef = await notesRef(req.user.uid).push(item);
+    await trashRef(req.user.uid).child(id).remove();
     res.json({ id: newRef.key, ...item });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/trash/:id', verifyTokenMiddleware, async (req, res) => {
   try {
-    const uid = req.user.uid;
-    const id = req.params.id;
-    await trashRef(uid).child(id).remove();
+    await trashRef(req.user.uid).child(req.params.id).remove();
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---------- File upload (PDF / images) ----------
+// ---------- File upload ----------
+
 app.post('/api/upload', verifyTokenMiddleware, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -163,15 +156,12 @@ app.post('/api/upload', verifyTokenMiddleware, upload.single('file'), async (req
       size: req.file.size,
       url
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
-// Serve static frontend
+// Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const port = PORT || 3000;
-app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+app.listen(port, () => console.log(`Server running at http://localhost:${port}`));
