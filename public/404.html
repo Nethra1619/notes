@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Notes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Firebase JS SDKs (auth only in client) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#f6b25b,#ffdbb2)"></div>
+      <div>Notes</div>
+    </div>
+
+    <div id="authArea" class="auth-area" style="margin-top:12px;">
+      <button id="signinBtn" class="btn">Sign in with Google</button>
+      <div id="userInfo" style="display:none;">
+        <img id="userPhoto" width="36" height="36" style="border-radius:8px" />
+        <div id="userEmail" style="font-size:13px"></div>
+        <button id="signoutBtn" class="btn secondary" style="margin-left:8px">Sign out</button>
+      </div>
+    </div>
+
+    <nav class="menu">
+      <button id="menu-notes" class="active" onclick="switchPage('notes')">Simple Notes</button>
+      <button id="menu-todo" onclick="switchPage('todo')">To-Do List</button>
+      <button id="menu-templates" onclick="switchPage('templates')">Templates</button>
+      <button id="menu-import" onclick="switchPage('import')">Import</button>
+      <button id="menu-trash" onclick="switchPage('trash')">Trash</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <div class="title" id="pageTitle">Simple Notes</div>
+      <div>
+        <button class="btn" id="addBtn">+ Add</button>
+        <label for="fileInput" class="btn" style="background:#fff;border:1px solid #eee;color:#333;margin-left:8px;">Import</label>
+        <input id="fileInput" type="file" accept=".pdf,image/*" />
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="left" id="leftCol"></section>
+      <aside class="right-panel" id="rightCol">
+        <h3>Write down your ideas 💡</h3>
+        <p class="small-muted">Select a note to edit and see details here.</p>
+        <div id="detailArea" style="margin-top:12px;"></div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ⚠️ PUT your public Firebase client config here (the one you gave before) 
+  // It's safe — these are not admin keys.
+  const FIREBASE_CLIENT_CONFIG = {
+    apiKey: "AIzaSyBtAubAX4TvPQoPVxnvWKo_tu3W2IzkW9I",
+    authDomain: "mood-detector16.firebaseapp.com",
+    databaseURL: "https://mood-detector16-default-rtdb.firebaseio.com",
+    projectId: "mood-detector16",
+    storageBucket: "mood-detector16.firebasestorage.app",
+    messagingSenderId: "323141703438",
+    appId: "1:323141703438:web:a9d0d8a4a6a5e33c5ce95f",
+    measurementId: "G-40WENKJ1TC"
+  };
+  // Expose to app.js
+  window.FIREBASE_CLIENT_CONFIG = FIREBASE_CLIENT_CONFIG;
+</script>
+
+<script src="app.js"></script>
+</body>
+</html>
